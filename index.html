@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+
+  <head>
+    <meta charset="UTF-8">
+    <title>Untitled</title>
+    
+
+  </head>
+    
+  <body>
+  <!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>اختبار تسجيل دخول Supabase (Magic Link)</title>
+  <style>
+    body { font-family: Tahoma, Arial, sans-serif; background:#f6fbf7; color:#0b3b25; display:flex; align-items:center; justify-content:center; height:100vh; margin:0; }
+    .card { width: 420px; background:#fff; border-radius:12px; box-shadow:0 8px 30px rgba(8,30,18,0.08); padding:20px; }
+    h2{ margin:0 0 12px 0; color:#115229; }
+    label{ display:block; margin-bottom:6px; font-weight:700; }
+    input[type="email"]{ width:100%; padding:10px 12px; border-radius:8px; border:1px solid #e6efe9; margin-bottom:10px; font-size:14px; }
+    button{ padding:10px 14px; border-radius:8px; border:none; cursor:pointer; font-weight:700; }
+    .btn-primary{ background:#1a7a4f; color:#fff; }
+    .btn-logout{ background:#c94b4b; color:#fff; margin-left:8px; }
+    .row{ display:flex; gap:8px; margin-top:8px; }
+    .status{ margin-top:12px; font-size:14px; color:#335b47; min-height:36px; }
+    .small{ font-size:12px; color:#6b8a79; margin-top:8px; }
+    pre{ background:#f4fbf8; padding:10px; border-radius:6px; overflow:auto; font-size:13px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>تجربة تسجيل الدخول — منظمة حديث الإسلامية</h2>
+
+    <label for="email">البريد الإلكتروني</label>
+    <input id="email" type="email" placeholder="example@example.com" autocomplete="email" />
+
+    <div class="row">
+      <button id="send" class="btn-primary">إرسال رابط التحقق (Magic Link)</button>
+      <button id="logout" class="btn-logout" style="display:none;">تسجيل الخروج</button>
+    </div>
+
+    <div class="status" id="status">الحالة: غير متصل</div>
+    <div class="small">بعد الضغط على "إرسال" سيتلقى البريد رابط تفعيل. افتح الصندوق الوارد واضغط الرابط لاختبار الجلسة.</div>
+
+    <hr style="margin:12px 0;border:none;border-top:1px solid #eef7f1;" />
+
+    <div><strong>معلومات الجلسة الحالية (للاختبار):</strong></div>
+    <pre id="sessionDump">لا توجد جلسة حالية</pre>
+  </div>
+
+  <!-- Supabase client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.26.0/dist/supabase.min.js"></script>
+
+  <script>
+    // ======= إعدادات Supabase =======
+    const SUPABASE_URL = 'https://lrledoghocheldksluhi.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_FNqzcNbdqRxseU6Tl1DqfQ_MgMn_xFb';
+
+    // أنشئ العميل بأمان (window.supabase مرفوع بواسطة CDN)
+    const supabaseLib = window.supabase;
+    const supabase = supabaseLib ? supabaseLib.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+    // عناصر الواجهة
+    const emailInput = document.getElementById('email');
+    const sendBtn = document.getElementById('send');
+    const logoutBtn = document.getElementById('logout');
+    const statusEl = document.getElementById('status');
+    const sessionDump = document.getElementById('sessionDump');
+
+    if (!supabase) {
+      statusEl.textContent = 'خطأ: مكتبة Supabase لم تُحمّل. تأكد من اتصال الإنترنت أو مسار CDN.';
+      console.error('Supabase library not loaded.');
+    }
+
+    // مساعدة لتحديث واجهة الحالة
+    function updateUIForUser(user) {
+      if (user && user.email) {
+        statusEl.textContent = `متصل كـ: ${user.email}`;
+        logoutBtn.style.display = 'inline-block';
+        sendBtn.style.display = 'none';
+        emailInput.style.display = 'none';
+        sessionDump.textContent = JSON.stringify(user, null, 2);
+      } else {
+        statusEl.textContent = 'الحالة: غير متصل';
+        logoutBtn.style.display = 'none';
+        sendBtn.style.display = 'inline-block';
+        emailInput.style.display = 'block';
+        sessionDump.textContent = 'لا توجد جلسة حالية';
+      }
+    }
+
+    // إرسال magic link
+    sendBtn.addEventListener('click', async () => {
+      const email = emailInput.value && emailInput.value.trim();
+      if (!email) {
+        statusEl.textContent = 'أدخل عنوان بريد إلكتروني صالح أولاً.';
+        return;
+      }
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'جارٍ الإرسال...';
+
+      try {
+        // الرجاء ضبط هذا إذا أردت توجيه المستخدم لصفحة نجاح مختلفة
+        const redirectTo = window.location.href;
+
+        const { data, error } = await supabase.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: redirectTo }
+        });
+
+        if (error) {
+          console.error('signInWithOtp error:', error);
+          statusEl.textContent = 'حدث خطأ أثناء إرسال الرابط. اطلع Console للتفاصيل.';
+        } else {
+          statusEl.textContent = 'تم إرسال رابط التحقق إلى بريدك. تحقق من صندوق الوارد (أو spam).';
+        }
+      } catch (err) {
+        console.error('Unexpected error:', err);
+        statusEl.textContent = 'خطأ غير متوقع. افحص Console.';
+      } finally {
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'إرسال رابط التحقق (Magic Link)';
+      }
+    });
+
+    // تسجيل خروج
+    logoutBtn.addEventListener('click', async () => {
+      try {
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+          console.error('signOut error:', error);
+          statusEl.textContent = 'خطأ أثناء تسجيل الخروج.';
+        } else {
+          updateUIForUser(null);
+          statusEl.textContent = 'تم تسجيل الخروج.';
+        }
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = 'خطأ أثناء تسجيل الخروج.';
+      }
+    });
+
+    // استمع لتغيرات حالة المصادقة وحدث الواجهة فورًا
+    if (supabase) {
+      supabase.auth.onAuthStateChange((event, session) => {
+        const user = session?.user || null;
+        updateUIForUser(user);
+        console.log('Auth event:', event, session);
+      });
+
+      // عند التحميل: حاول جلب الجلسة الحالية
+      (async function init() {
+        // بعض حالات magic link تحتاج لمعالجة URL بعد إعادة التوجيه
+        try {
+          // يحاول SDK التقاط الجلسة من عنوان URL إن وُجد
+          if (window.location.href.includes('access_token') || window.location.href.includes('type=magiclink')) {
+            // هذه الدالة قد تهيئ الجلسة من الرابط، لكنها اختيارية بحسب إعداد SDK والنسخة
+            try {
+              await supabase.auth.getSessionFromUrl({ storeSession: true });
+              // احذف باراميترز URL الحساسة إذا أردت (بسيط)
+              history.replaceState(null, '', window.location.pathname);
+            } catch(e) {
+              // ليس خطأ قاتل — قد لا تكون هناك حاجة لها حسب إعداد Supabase
+              console.debug('getSessionFromUrl not necessary or failed:', e);
+            }
+          }
+
+          const { data } = await supabase.auth.getSession();
+          const session = data?.session;
+          if (session && session.user) updateUIForUser(session.user);
+          else updateUIForUser(null);
+        } catch (err) {
+          console.error('init session error:', err);
+          updateUIForUser(null);
+        }
+      })();
+    }
+
+    // نهاية السكربت — للديباغ
+    console.log('Supabase auth test page loaded.');
+  </script>
+</body>
+</html>
+    
+  </body>
+  
+</html>
